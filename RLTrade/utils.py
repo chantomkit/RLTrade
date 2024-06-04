@@ -20,16 +20,10 @@ def build_rolling_feature(df, feature_col="close", window=24, mode="default", me
     for i in range(window):
         rolling_features[f"feature_rolling_{i}"] = target.shift(i)
     rolling_features = rolling_features.bfill(axis=0)
+    if mean_correction:
+        rolling_features = rolling_features - rolling_features.mean(axis=1).values.reshape(-1, 1)
 
     df_copy = pd.concat([df_copy, rolling_features], axis=1)
-    return df_copy
-
-def rolling_mean_correction(df, feature_col="close", window=24):
-    df_copy = df.copy()
-    target = df_copy[feature_col]
-    rolling_mean = target.rolling(window=window, min_periods=1).mean()
-    target = target - rolling_mean
-    df_copy[f"rolling_mean_corrected_{feature_col}"] = target
     return df_copy
 
 def stationaryDGP(
