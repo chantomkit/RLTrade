@@ -21,6 +21,10 @@ class ReplayMemory(object):
 
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
+    
+    def get_all(self):
+        """Get all experiences stored in the memory."""
+        return list(self.memory)
 
     def __len__(self):
         return len(self.memory)

@@ -3,7 +3,8 @@ import random
 
 from itertools import count
 
-# import xgboost as xgb
+import numpy as np
+import xgboost as xgb
 
 import torch
 import torch.nn as nn
@@ -16,7 +17,8 @@ class DQNAgent:
     def __init__(
             self,
             n_observations, 
-            n_actions
+            n_actions,
+            memory_capacity=500000
         ):
         self.BATCH_SIZE = 128
         self.GAMMA = 0.99
@@ -35,7 +37,7 @@ class DQNAgent:
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.LR)
-        self.memory = ReplayMemory(500000)
+        self.memory = ReplayMemory(memory_capacity)
         self.steps_done = 0
 
     def greedy(self, state):
@@ -156,5 +158,135 @@ class DQNAgent:
             action = self.greedy(state)
             observation, reward, terminated, truncated, _ = env.step(action.item())
             state = torch.tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(0)
+            done = terminated or truncated
+        return env
+    
+class XGBoostAgent:
+    def __init__(
+            self, 
+            n_observations, 
+            n_actions,
+            memory_capacity=500000
+        ):
+        self.n_observations = n_observations
+        self.n_actions = n_actions
+        self.memory = ReplayMemory(memory_capacity)
+        self.epsilon = 1.0  # exploration rate
+        self.epsilon_min = 0.0
+        self.epsilon_decay = 0.5
+        self.model = None
+
+        self.DISCOUNT = 0.95
+
+    def getQvalues(self, state):
+        """Get Q-values for a given state."""
+        if self.model is None:
+            return np.zeros(self.n_actions)
+
+        np_state = np.reshape(state, [1, self.n_observations])
+        actions = np.arange(self.n_actions).reshape(-1, 1)
+        input_data = np.hstack((np.tile(np_state, (self.n_actions, 1)), actions))
+        input_xgb = xgb.DMatrix(input_data)
+        action_Qs = self.model.predict(input_xgb)
+        return action_Qs
+
+    def getMaxQ(self, state):
+        """Get maximum Q-value for a given state."""
+        return np.max(self.getQvalues(state))
+
+    def act(self, state, epilson_greedy=True):
+        """Choose an action based on the current policy."""
+        if epilson_greedy and (np.random.rand() < self.epsilon or self.model is None):
+            return random.randrange(self.n_actions)
+        return np.argmax(self.getQvalues(state))
+
+    def replay(self):
+        """Train the model using the memory."""
+        max_depth = 6
+        num_rounds = 100
+        gamma = 0.05
+        eta = 0.75
+
+        params = {
+            # 'max_depth': max_depth, 
+            # 'eta': eta, 
+            # 'gamma': gamma, 
+            'objective': 'reg:squarederror',
+        }
+
+        mem = self.memory.get_all()
+        mem = Transition(*zip(*mem))
+        states = np.array(mem.state)
+        actions = np.array(mem.action).reshape(-1, 1)
+        rewards = np.array(mem.reward)
+
+        input_training = np.hstack((states, actions))
+        training_data = xgb.DMatrix(input_training, label=rewards)
+
+        self.model = xgb.train(params, training_data, num_boost_round=num_rounds)
+
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+    def n_step_return(self, t, temp_memory, n=100):
+        """Compute the n-step return."""
+        target = 0.
+
+        for i in range(n):
+            if t + i >= len(temp_memory):
+                break
+            target += (self.DISCOUNT ** i) * temp_memory[t+i].reward
+
+        final_state = temp_memory[t+n].next_state if t + n < len(temp_memory) else None
+        if final_state is not None:
+            target += (self.DISCOUNT ** n) * self.getMaxQ(final_state)
+
+        return target
+
+    def train(self, env, num_episodes=20, replay_every=2):
+        history_metrics = []
+        for i_episode in range(num_episodes):
+            temp_memory = []
+            state, info = env.reset()
+            done = False
+            episode_reward = 0
+            for t in count():
+                action = self.act(state)
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                episode_reward += reward
+
+                done = terminated or truncated
+                if terminated:
+                    next_state = None
+                temp_memory.append(Transition(state, action, next_state, reward))
+                state = next_state
+
+                if done:
+                    metric = env.unwrapped.get_metrics()
+                    metric["episodic_reward"] = episode_reward
+                    history_metrics.append(metric)
+                    break
+    
+            for t in range(len(temp_memory)):
+                G_t = self.n_step_return(t, temp_memory)
+                self.memory.push(
+                    temp_memory[t].state.copy(), 
+                    temp_memory[t].action, 
+                    temp_memory[t].next_state.copy(), 
+                    G_t
+                )
+
+            if (i_episode+1) % replay_every == 0:
+                self.replay()
+
+        return history_metrics, env
+    
+    def eval(self, env):
+        state, info = env.reset()
+        done = False
+        while not done:
+            action = self.act(state, epilson_greedy=False)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            state = next_state
             done = terminated or truncated
         return env
