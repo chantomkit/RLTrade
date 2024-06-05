@@ -1,30 +1,82 @@
 import numpy as np
 import pandas as pd
 
-def build_features(df, features_col="close"):
-    feat = df[[features_col]].add_prefix("feature_")
-    return pd.concat([df, feat], axis=1)
+class FeatureEngineering:
+    def __init__(self, df, main_feature_col="close"):
+        self.df = df.copy()
+        self.main_feature_col = main_feature_col
 
-def build_rolling_feature(df, feature_col="close", window=24, mode="default", mean_correction=False):
-    df_copy = df.copy()
-    if mode == "default":
-        target = df_copy[feature_col]
-    elif mode == "log":
-        target = np.log(df_copy[feature_col])
-    elif mode == "diff":
-        target = df_copy[feature_col].diff().fillna(0)
-    elif mode == "logdiff":
-        target = np.log(df_copy[feature_col]).diff().fillna(0)
+    def build_features(self, additonal_features=[]):
+        feature_cols = [self.main_feature_col]
+        if additonal_features:
+            feature_cols += additonal_features
+        feat = self.df[feature_cols].add_prefix("feature_")
+        self.df = pd.concat([self.df, feat], axis=1)
 
-    rolling_features = pd.DataFrame(index=df.index)
-    for i in range(window):
-        rolling_features[f"feature_rolling_{i}"] = target.shift(i)
-    rolling_features = rolling_features.bfill(axis=0)
-    if mean_correction:
-        rolling_features = rolling_features - rolling_features.mean(axis=1).values.reshape(-1, 1)
+    def rolling_feature(self, window=24, mode="default", subtract_mean=False):
+        df_copy = self.df.copy()
+        if mode == "default":
+            target = df_copy[self.main_feature_col]
+        elif mode == "log":
+            target = np.log(df_copy[self.main_feature_col])
+        elif mode == "diff":
+            target = df_copy[self.main_feature_col].diff().fillna(0)
+        elif mode == "logdiff":
+            target = np.log(df_copy[self.main_feature_col]).diff().fillna(0)
 
-    df_copy = pd.concat([df_copy, rolling_features], axis=1)
-    return df_copy
+        rolling_features = pd.DataFrame(index=self.df.index)
+        for i in range(window):
+            rolling_features[f"feature_rolling_{i}"] = target.shift(i)
+            
+        if subtract_mean:
+            rolling_features = rolling_features - rolling_features.mean(axis=1).values.reshape(-1, 1)
+        rolling_features = rolling_features.ffill(axis=1)
+
+        df_copy = pd.concat([df_copy, rolling_features], axis=1)
+        self.df = df_copy
+    
+    def rolling_mean_corrected_feature(self, window=24, mode="default"):
+        df_copy = self.df.copy()
+        if mode == "default":
+            target = df_copy[self.main_feature_col]
+        elif mode == "log":
+            target = np.log(df_copy[self.main_feature_col])
+        elif mode == "diff":
+            target = df_copy[self.main_feature_col].diff().fillna(0)
+        elif mode == "logdiff":
+            target = np.log(df_copy[self.main_feature_col]).diff().fillna(0)
+
+        rolling_means = target.rolling(window=window, min_periods=1).mean()
+        target = target - rolling_means
+        df_copy[f"feature_rolling_mean_corrected"] = target
+        self.df = df_copy
+    
+# def build_features(df, features_col="close"):
+#     feat = df[[features_col]].add_prefix("feature_")
+#     return pd.concat([df, feat], axis=1)
+
+# def rolling_feature(df, feature_col="close", window=24, mode="default", subtract_mean=False):
+#     df_copy = df.copy()
+#     if mode == "default":
+#         target = df_copy[feature_col]
+#     elif mode == "log":
+#         target = np.log(df_copy[feature_col])
+#     elif mode == "diff":
+#         target = df_copy[feature_col].diff().fillna(0)
+#     elif mode == "logdiff":
+#         target = np.log(df_copy[feature_col]).diff().fillna(0)
+
+#     rolling_features = pd.DataFrame(index=df.index)
+#     for i in range(window):
+#         rolling_features[f"feature_rolling_{i}"] = target.shift(i)
+#     rolling_features = rolling_features.bfill(axis=0)
+#     if subtract_mean:
+#         rolling_features = rolling_features - rolling_features.mean(axis=1).values.reshape(-1, 1)
+
+#     df_copy = pd.concat([df_copy, rolling_features], axis=1)
+#     return df_copy
+
+# def rolling_mean_corrected_feature(df, feature_col="close", window=24, mode="default"):
 
 def stationaryDGP(
         N=10000,
