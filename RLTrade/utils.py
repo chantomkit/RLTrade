@@ -23,6 +23,10 @@ class FeatureEngineering:
             target = df_copy[self.main_feature_col].diff().fillna(0)
         elif mode == "logdiff":
             target = np.log(df_copy[self.main_feature_col]).diff().fillna(0)
+        elif mode == "pct_change":
+            target = df_copy[self.main_feature_col].pct_change().fillna(0)
+        elif mode == "logpct_change":
+            target = np.log(df_copy[self.main_feature_col].pct_change().fillna(1))
 
         rolling_features = pd.DataFrame(index=self.df.index)
         for i in range(window):

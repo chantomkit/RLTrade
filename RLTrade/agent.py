@@ -203,15 +203,16 @@ class XGBoostAgent:
     def replay(self):
         """Train the model using the memory."""
         max_depth = 6
-        num_rounds = 100
+        num_round = 3
+
         gamma = 0.05
         eta = 0.75
 
         params = {
-            # 'max_depth': max_depth, 
-            # 'eta': eta, 
-            # 'gamma': gamma, 
-            'objective': 'reg:squarederror',
+            'max_depth': max_depth, 
+            'eta': eta, 
+            'gamma': gamma, 
+            'objective': 'reg:linear',
         }
 
         mem = self.memory.get_all()
@@ -223,7 +224,7 @@ class XGBoostAgent:
         input_training = np.hstack((states, actions))
         training_data = xgb.DMatrix(input_training, label=rewards)
 
-        self.model = xgb.train(params, training_data, num_boost_round=num_rounds)
+        self.model = xgb.train(params, training_data, num_boost_round=num_round)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
