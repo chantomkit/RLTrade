@@ -203,16 +203,16 @@ class XGBoostAgent:
     def replay(self):
         """Train the model using the memory."""
         max_depth = 6
-        num_round = 3
+        num_round = 100
 
         gamma = 0.05
         eta = 0.75
 
         params = {
-            'max_depth': max_depth, 
-            'eta': eta, 
-            'gamma': gamma, 
-            'objective': 'reg:linear',
+            # 'max_depth': max_depth, 
+            # 'eta': eta, 
+            # 'gamma': gamma, 
+            'objective': 'reg:squarederror',
         }
 
         mem = self.memory.get_all()
