@@ -18,26 +18,32 @@ class DQNAgent:
             self,
             n_observations, 
             n_actions,
-            memory_capacity=500000
+            memory_capacity=500000,
+            target_net_layers=[32],
+            policy_net_layers=[32],
         ):
-        self.BATCH_SIZE = 128
-        self.GAMMA = 0.99
-        self.EPS_START = 0.9
-        self.EPS_END = 0.05
-        self.EPS_DECAY = 1000
-        self.TAU = 0.005
-        self.LR = 1e-4
+        # agent hyperparameters
+        self.memory_capacity = memory_capacity
+        self.batch_size = 128
+        self.gamma = 0.99
+        self.eps_start = 0.9
+        self.eps_end = 0.05
+        self.eps_decay = 1000
+        self.tau = 0.005
+        self.lr = 1e-4
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        # agent input and output sizes
         self.n_observations = n_observations
         self.n_actions = n_actions
-
-        self.policy_net = DQN(self.n_observations, self.n_actions).to(self.device)
-        self.target_net = DQN(self.n_observations, self.n_actions).to(self.device)
+        # agent models hyperparameters
+        self.target_net_layers = target_net_layers
+        self.policy_net_layers = policy_net_layers
+        self.policy_net = DQN(self.n_observations, self.n_actions, self.target_net_layers).to(self.device)
+        self.target_net = DQN(self.n_observations, self.n_actions, self.policy_net_layers).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.LR)
-        self.memory = ReplayMemory(memory_capacity)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr)
+        self.memory = ReplayMemory(self.memory_capacity)
         self.steps_done = 0
 
     def greedy(self, state):
@@ -49,8 +55,8 @@ class DQNAgent:
         
     def epsilon_greedy(self, state):
         sample = random.random()
-        eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * \
-            math.exp(-1. * self.steps_done / self.EPS_DECAY)
+        eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * \
+            math.exp(-1. * self.steps_done / self.eps_decay)
         self.steps_done += 1
         if sample > eps_threshold:
             return self.greedy(state)
@@ -58,9 +64,9 @@ class DQNAgent:
             return torch.tensor([[random.choice(range(self.n_actions))]], device=self.device, dtype=torch.long)
         
     def optimize_model(self):
-        if len(self.memory) < self.BATCH_SIZE:
+        if len(self.memory) < self.batch_size:
             return
-        transitions = self.memory.sample(self.BATCH_SIZE)
+        transitions = self.memory.sample(self.batch_size)
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
         # detailed explanation). This converts batch-array of Transitions
         # to Transition of batch-arrays.
@@ -86,11 +92,11 @@ class DQNAgent:
         # on the "older" target_net; selecting their best reward with max(1).values
         # This is merged based on the mask, such that we'll have either the expected
         # state value or 0 in case the state was final.
-        next_state_values = torch.zeros(self.BATCH_SIZE, device=self.device)
+        next_state_values = torch.zeros(self.batch_size, device=self.device)
         with torch.no_grad():
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1).values
         # Compute the expected Q values
-        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch
+        expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
         # Compute Huber loss
         criterion = nn.SmoothL1Loss()
@@ -140,7 +146,7 @@ class DQNAgent:
                 target_net_state_dict = self.target_net.state_dict()
                 policy_net_state_dict = self.policy_net.state_dict()
                 for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key]*self.TAU + target_net_state_dict[key]*(1-self.TAU)
+                    target_net_state_dict[key] = policy_net_state_dict[key]*self.tau + target_net_state_dict[key]*(1-self.tau)
                 self.target_net.load_state_dict(target_net_state_dict)
 
                 if done:

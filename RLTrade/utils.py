@@ -1,18 +1,20 @@
 import numpy as np
 import pandas as pd
 
+
 class FeatureEngineering:
     """
     A flexible feature-engineering pipeline for time series DataFrame.
     Build a sequence of feature transformations via a configuration list.
     """
-    def __init__(self, df, feature_prefix='feature_'):
+
+    def __init__(self, df, feature_prefix="feature_"):
         self.df = df.copy()
         self.prefix = feature_prefix
         self._builders = {
-            'select': self._select_features,
-            'rolling': self._rolling_window,
-            'rolling_mean_corrected': self._rolling_mean_corrected
+            "select": self._select_features,
+            "rolling": self._rolling_window,
+            "rolling_mean_corrected": self._rolling_mean_corrected,
         }
 
     @staticmethod
@@ -21,17 +23,17 @@ class FeatureEngineering:
         Apply a transformation to a pandas Series.
         Supported modes: 'default', 'log', 'diff', 'logdiff', 'pct_change', 'logpct_change'
         """
-        if mode == 'default':
+        if mode == "default":
             return series
-        if mode == 'log':
+        if mode == "log":
             return np.log(series)
-        if mode == 'diff':
+        if mode == "diff":
             return series.diff().fillna(0)
-        if mode == 'logdiff':
+        if mode == "logdiff":
             return np.log(series).diff().fillna(0)
-        if mode == 'pct_change':
+        if mode == "pct_change":
             return series.pct_change().fillna(0)
-        if mode == 'logpct_change':
+        if mode == "logpct_change":
             return np.log(series).pct_change().fillna(1)
         raise ValueError(f"Unsupported mode: {mode}")
 
@@ -49,8 +51,8 @@ class FeatureEngineering:
         """
         df = self.df
         for step in steps:
-            ftype = step['type']
-            params = step.get('params', {})
+            ftype = step["type"]
+            params = step.get("params", {})
             builder = self._builders.get(ftype)
             if not builder:
                 raise ValueError(f"Unknown feature type: {ftype}")
@@ -58,12 +60,12 @@ class FeatureEngineering:
         self.df = df
         return df
 
-    def _select_features(self, df, cols):
+    def _select_features(self, df, cols, mode="default"):
         """Select original columns and add them with feature prefix."""
         selected = df[cols].add_prefix(self.prefix)
         return pd.concat([df, selected], axis=1)
 
-    def _rolling_window(self, df, cols, window=24, mode='default', subtract_mean=False):
+    def _rolling_window(self, df, cols, window=24, mode="default", subtract_mean=False):
         """Compute rolling-lag features for given columns."""
         result = df.copy()
         for col in cols:
@@ -71,14 +73,15 @@ class FeatureEngineering:
             # build lagged columns
             lags = [series.shift(i) for i in range(window)]
             rolling = pd.concat(lags, axis=1)
-            rolling.columns = [f"{self.prefix}{col}_lag_{i}" for i in range(window)]
+            rolling.columns = [
+                f"{self.prefix}{col}_lag_{i}" for i in range(window)]
             if subtract_mean:
                 rolling = rolling.sub(rolling.mean(axis=1), axis=0)
             rolling = rolling.ffill().fillna(0)
             result = pd.concat([result, rolling], axis=1)
         return result
 
-    def _rolling_mean_corrected(self, df, cols, window=24, mode='default'):
+    def _rolling_mean_corrected(self, df, cols, window=24, mode="default"):
         """Subtract rolling mean from transformed series for given columns."""
         result = df.copy()
         for col in cols:
@@ -87,6 +90,7 @@ class FeatureEngineering:
             corrected = series - roll_mean
             result[f"{self.prefix}{col}_rolling_mean_corrected"] = corrected
         return result
+
 
 def stationary_dgp(
     N=10000,
@@ -99,7 +103,7 @@ def stationary_dgp(
 ):
     """
     Generates two cointegrated time series X and Y using a stationary mean reverting error by OU process.
-    
+
     Args:
         N (int): Number of time steps.
         sigma_x (float): Std deviation of X's random walk noise.
@@ -114,11 +118,15 @@ def stationary_dgp(
     if random_state is not None:
         np.random.seed(random_state)
 
-    X, epsilon = np.zeros(N), np.zeros(N)  # +1 because we use epsilon[0] as initial value
+    X, epsilon = np.zeros(N), np.zeros(
+        N
+    )  # +1 because we use epsilon[0] as initial value
 
     # Initial conditions
     X[0] = np.random.normal(x0, sigma_x)
-    epsilon[0] = mu + np.random.normal(0.0, sigma_eta)  # Random initial value for epsilon
+    epsilon[0] = mu + np.random.normal(
+        0.0, sigma_eta
+    )  # Random initial value for epsilon
 
     for t in range(1, N):
         X[t] = X[t - 1] + np.random.normal(0.0, sigma_x)  # Random walk
@@ -126,12 +134,13 @@ def stationary_dgp(
         # Euler–Maruyama step for epsilon: ε_t = ε_{t-1} + θ(μ - ε_{t-1}) + η_t,   η_t∼𝒩(0,σ_{η}^2)
         # Assume Δt = 1 for simplicity
         epsilon[t] = (
-            epsilon[t - 1] +
-            theta * (mu - epsilon[t - 1]) +
-            np.random.normal(0.0, sigma_eta)
+            epsilon[t - 1]
+            + theta * (mu - epsilon[t - 1])
+            + np.random.normal(0.0, sigma_eta)
         )
 
     return X, X + epsilon  # Y = X + ε
+
 
 def nonstationary_dgp(
     N=10000,
@@ -144,7 +153,7 @@ def nonstationary_dgp(
 ):
     """
     Generates two cointegrated time series X and Y with nonstationary behavior.
-    
+
     Args:
         N (int): Number of time steps.
         sigma_x (float): Std deviation of X's random walk noise.
@@ -159,26 +168,80 @@ def nonstationary_dgp(
     if random_state is not None:
         np.random.seed(random_state)
 
-    X, epsilon = np.zeros(N), np.zeros(N)  # +1 because we use epsilon[0] as initial value
+    X, epsilon = np.zeros(N), np.zeros(
+        N
+    )  # +1 because we use epsilon[0] as initial value
 
     # Initial conditions
     X[0] = np.random.normal(x0, sigma_x)
-    epsilon[0] = mu + np.random.normal(0.0, sigma_eta)  # Random initial value for epsilon
+    epsilon[0] = mu + np.random.normal(
+        0.0, sigma_eta
+    )  # Random initial value for epsilon
 
     for t in range(1, N):
         if t % 200 == 0:
-            mu += np.random.standard_cauchy() * 0.01  # model slow evolution of equilibrium and very rare unexpected large shifts.
+            mu += (
+                np.random.standard_cauchy() * 0.01
+            )  # model slow evolution of equilibrium and very rare unexpected large shifts.
 
         if np.random.uniform(0, 1) >= 0.995:
-            mu += np.random.uniform(-3, 3)  # model rare discrete regime changes or market discontinuities.
+            mu += np.random.uniform(
+                -3, 3
+            )  # model rare discrete regime changes or market discontinuities.
 
         X[t] = X[t - 1] + np.random.normal(0.0, sigma_x)  # Random walk
         # Euler–Maruyama step for epsilon: ε_t = ε_{t-1} + θ(μ - ε_{t-1}) + η_t,   η_t∼𝒩(0,σ_{η}^2)
         # Assume Δt = 1 for simplicity
         epsilon[t] = (
-            epsilon[t - 1] +
-            theta * (mu - epsilon[t - 1]) +
-            np.random.normal(0.0, sigma_eta)
+            epsilon[t - 1]
+            + theta * (mu - epsilon[t - 1])
+            + np.random.normal(0.0, sigma_eta)
         )
 
     return X, X + epsilon  # Y = X + ε
+
+
+def make_ohlc(
+    close,
+    gap_pct=0.002,         # 0.2% gap
+    intraday_pct=0.01,     # 1% intraday volatility
+    random_state=None
+):
+    """
+    Generate OHLC prices from a given close price series using % scaling for realism.
+
+    Args:
+        close (np.ndarray): Close price series.
+        gap_pct (float): Std deviation of overnight gap as % of close price.
+        intraday_pct (float): Std deviation of intraday range as % of close price.
+        random_state (int or None): Optional seed.
+
+    Returns:
+        tuple: open, high, low, close arrays
+    """
+    if random_state is not None:
+        np.random.seed(random_state)
+
+    close = np.asarray(close)
+    N = len(close)
+
+    # Scale noise based on current close price
+    gap_noise = np.random.normal(0.0, gap_pct, size=N) * close
+    intraday_noise = np.random.normal(0.0, intraday_pct, size=N)
+
+    open_ = np.empty_like(close)
+    open_[0] = close[0]
+    open_[1:] = close[:-1] + gap_noise[1:]
+
+    # Build high/low based on open-close and intraday noise
+    hi_base = np.maximum(open_, close)
+    lo_base = np.minimum(open_, close)
+
+    ups = np.abs(intraday_noise * close)
+    downs = np.abs(intraday_noise * close)
+
+    high = hi_base + ups
+    low = lo_base - downs
+
+    return open_, high, low, close
+
