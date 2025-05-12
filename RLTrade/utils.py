@@ -203,45 +203,33 @@ def nonstationary_dgp(
 
 def make_ohlc(
     close,
-    gap_pct=0.002,         # 0.2% gap
-    intraday_pct=0.01,     # 1% intraday volatility
-    random_state=None
+    window=24,
+    stride=24,
 ):
     """
-    Generate OHLC prices from a given close price series using % scaling for realism.
+    Create OHLC data from a close price series using numpy.
 
     Args:
-        close (np.ndarray): Close price series.
-        gap_pct (float): Std deviation of overnight gap as % of close price.
-        intraday_pct (float): Std deviation of intraday range as % of close price.
-        random_state (int or None): Optional seed.
+        close (np.ndarray): Close price series as a numpy array.
+        window (int): Window size for OHLC calculation.
 
     Returns:
-        tuple: open, high, low, close arrays
+        tuple: Tuple of numpy arrays (open, high, low, close).
     """
-    if random_state is not None:
-        np.random.seed(random_state)
+    n = len(close)
+    n_windows = (n - window) // stride + 1
 
-    close = np.asarray(close)
-    N = len(close)
+    open_ = np.zeros(n_windows)
+    high_ = np.zeros(n_windows)
+    low_ = np.zeros(n_windows)
+    close_ = np.zeros(n_windows)
 
-    # Scale noise based on current close price
-    gap_noise = np.random.normal(0.0, gap_pct, size=N) * close
-    intraday_noise = np.random.normal(0.0, intraday_pct, size=N)
+    for i in range(n_windows):
+        start = i * stride
+        end = start + window
+        open_[i] = close[start]
+        high_[i] = close[start:end].max()
+        low_[i] = close[start:end].min()
+        close_[i] = close[end - 1]
 
-    open_ = np.empty_like(close)
-    open_[0] = close[0]
-    open_[1:] = close[:-1] + gap_noise[1:]
-
-    # Build high/low based on open-close and intraday noise
-    hi_base = np.maximum(open_, close)
-    lo_base = np.minimum(open_, close)
-
-    ups = np.abs(intraday_noise * close)
-    downs = np.abs(intraday_noise * close)
-
-    high = hi_base + ups
-    low = lo_base - downs
-
-    return open_, high, low, close
-
+    return open_, high_, low_, close_
