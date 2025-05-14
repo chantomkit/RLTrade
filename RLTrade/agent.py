@@ -297,3 +297,21 @@ class XGBoostAgent:
             state = next_state
             done = terminated or truncated
         return env
+    
+class DummyAgent:
+    def __init__(self, n_observations, n_actions):
+        self.n_observations = n_observations
+        self.n_actions = n_actions
+
+    def act(self, state):
+        return 1  # Dummy action, always exit
+    
+    def eval(self, env):
+        state, info = env.reset()
+        done = False
+        while not done:
+            action = self.act(state)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            state = next_state
+            done = terminated or truncated
+        return env
