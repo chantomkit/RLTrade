@@ -313,7 +313,6 @@ dependencies:
       - optax==0.2.2
       - orbax-checkpoint==0.5.10
       - pandas-datareader==0.10.0
-      - pandas-ta==0.3.14b0
       - peewee==3.17.0
       - prettytable==3.10.0
       - protobuf==5.26.1
