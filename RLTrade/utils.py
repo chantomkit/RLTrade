@@ -165,9 +165,7 @@ def nonstationary_dgp(
     if random_state is not None:
         np.random.seed(random_state)
 
-    X, epsilon = np.zeros(N), np.zeros(
-        N
-    )  # +1 because we use epsilon[0] as initial value
+    X, epsilon = np.zeros(N), np.zeros(N)
 
     # Initial conditions
     X[0] = np.random.normal(x0, sigma_x)
