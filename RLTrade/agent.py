@@ -13,15 +13,16 @@ import torch.nn.functional as F
 
 from RLTrade.model import DQN, ReplayMemory, Transition
 
+
 class DQNAgent:
     def __init__(
-            self,
-            n_observations, 
-            n_actions,
-            memory_capacity=500000,
-            target_net_layers=[32],
-            policy_net_layers=[32],
-        ):
+        self,
+        n_observations,
+        n_actions,
+        memory_capacity=500000,
+        target_net_layers=[32],
+        policy_net_layers=[32],
+    ):
         # agent hyperparameters
         self.memory_capacity = memory_capacity
         self.batch_size = 128
@@ -38,8 +39,12 @@ class DQNAgent:
         # agent models hyperparameters
         self.target_net_layers = target_net_layers
         self.policy_net_layers = policy_net_layers
-        self.policy_net = DQN(self.n_observations, self.n_actions, self.target_net_layers).to(self.device)
-        self.target_net = DQN(self.n_observations, self.n_actions, self.policy_net_layers).to(self.device)
+        self.policy_net = DQN(
+            self.n_observations, self.n_actions, self.target_net_layers
+        ).to(self.device)
+        self.target_net = DQN(
+            self.n_observations, self.n_actions, self.policy_net_layers
+        ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr)
@@ -52,17 +57,22 @@ class DQNAgent:
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
             return self.policy_net(state).max(1).indices.view(1, 1)
-        
+
     def epsilon_greedy(self, state):
         sample = random.random()
-        eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * \
-            math.exp(-1. * self.steps_done / self.eps_decay)
+        eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * math.exp(
+            -1.0 * self.steps_done / self.eps_decay
+        )
         self.steps_done += 1
         if sample > eps_threshold:
             return self.greedy(state)
         else:
-            return torch.tensor([[random.choice(range(self.n_actions))]], device=self.device, dtype=torch.long)
-        
+            return torch.tensor(
+                [[random.choice(range(self.n_actions))]],
+                device=self.device,
+                dtype=torch.long,
+            )
+
     def optimize_model(self):
         if len(self.memory) < self.batch_size:
             return
@@ -74,10 +84,14 @@ class DQNAgent:
 
         # Compute a mask of non-final states and concatenate the batch elements
         # (a final state would've been the one after which simulation ended)
-        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                            batch.next_state)), device=self.device, dtype=torch.bool)
-        non_final_next_states = torch.cat([s for s in batch.next_state
-                                if s is not None])
+        non_final_mask = torch.tensor(
+            tuple(map(lambda s: s is not None, batch.next_state)),
+            device=self.device,
+            dtype=torch.bool,
+        )
+        non_final_next_states = torch.cat(
+            [s for s in batch.next_state if s is not None]
+        )
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
@@ -94,7 +108,9 @@ class DQNAgent:
         # state value or 0 in case the state was final.
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         with torch.no_grad():
-            next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1).values
+            next_state_values[non_final_mask] = (
+                self.target_net(non_final_next_states).max(1).values
+            )
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
@@ -115,7 +131,9 @@ class DQNAgent:
             # action_stats = {0: 0, 1: 0, 2: 0}
             # Initialize the environment and get its state
             state, info = env.reset()
-            state = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+            state = torch.tensor(
+                state, dtype=torch.float32, device=self.device
+            ).unsqueeze(0)
 
             episode_reward = 0
             for t in count():
@@ -130,7 +148,9 @@ class DQNAgent:
                 if terminated:
                     next_state = None
                 else:
-                    next_state = torch.tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(0)
+                    next_state = torch.tensor(
+                        observation, dtype=torch.float32, device=self.device
+                    ).unsqueeze(0)
 
                 # Store the transition in memory
                 self.memory.push(state, action, next_state, reward)
@@ -146,7 +166,9 @@ class DQNAgent:
                 target_net_state_dict = self.target_net.state_dict()
                 policy_net_state_dict = self.policy_net.state_dict()
                 for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key]*self.tau + target_net_state_dict[key]*(1-self.tau)
+                    target_net_state_dict[key] = policy_net_state_dict[
+                        key
+                    ] * self.tau + target_net_state_dict[key] * (1 - self.tau)
                 self.target_net.load_state_dict(target_net_state_dict)
 
                 if done:
@@ -155,25 +177,25 @@ class DQNAgent:
                     history_metrics.append(metric)
                     break
         return history_metrics, env
-    
+
     def eval(self, env):
         state, info = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+        state = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(
+            0
+        )
         done = False
         while not done:
             action = self.greedy(state)
             observation, reward, terminated, truncated, _ = env.step(action.item())
-            state = torch.tensor(observation, dtype=torch.float32, device=self.device).unsqueeze(0)
+            state = torch.tensor(
+                observation, dtype=torch.float32, device=self.device
+            ).unsqueeze(0)
             done = terminated or truncated
         return env
-    
+
+
 class XGBoostAgent:
-    def __init__(
-            self, 
-            n_observations, 
-            n_actions,
-            memory_capacity=500000
-        ):
+    def __init__(self, n_observations, n_actions, memory_capacity=500000):
         self.n_observations = n_observations
         self.n_actions = n_actions
         self.memory = ReplayMemory(memory_capacity)
@@ -215,10 +237,10 @@ class XGBoostAgent:
         eta = 0.75
 
         params = {
-            # 'max_depth': max_depth, 
-            # 'eta': eta, 
-            # 'gamma': gamma, 
-            'objective': 'reg:squarederror',
+            # 'max_depth': max_depth,
+            # 'eta': eta,
+            # 'gamma': gamma,
+            "objective": "reg:squarederror",
         }
 
         mem = self.memory.get_all()
@@ -237,16 +259,18 @@ class XGBoostAgent:
 
     def n_step_return(self, t, temp_memory, n=100):
         """Compute the n-step return."""
-        target = 0.
+        target = 0.0
 
         for i in range(n):
             if t + i >= len(temp_memory):
                 break
-            target += (self.DISCOUNT ** i) * temp_memory[t+i].reward
+            target += (self.DISCOUNT**i) * temp_memory[t + i].reward
 
-        final_state = temp_memory[t+n].next_state if t + n < len(temp_memory) else None
+        final_state = (
+            temp_memory[t + n].next_state if t + n < len(temp_memory) else None
+        )
         if final_state is not None:
-            target += (self.DISCOUNT ** n) * self.getMaxQ(final_state)
+            target += (self.DISCOUNT**n) * self.getMaxQ(final_state)
 
         return target
 
@@ -273,21 +297,21 @@ class XGBoostAgent:
                     metric["episodic_reward"] = episode_reward
                     history_metrics.append(metric)
                     break
-    
+
             for t in range(len(temp_memory)):
                 G_t = self.n_step_return(t, temp_memory)
                 self.memory.push(
-                    temp_memory[t].state.copy(), 
-                    temp_memory[t].action, 
-                    temp_memory[t].next_state.copy(), 
-                    G_t
+                    temp_memory[t].state.copy(),
+                    temp_memory[t].action,
+                    temp_memory[t].next_state.copy(),
+                    G_t,
                 )
 
-            if (i_episode+1) % replay_every == 0:
+            if (i_episode + 1) % replay_every == 0:
                 self.replay()
 
         return history_metrics, env
-    
+
     def eval(self, env):
         state, info = env.reset()
         done = False
@@ -297,7 +321,8 @@ class XGBoostAgent:
             state = next_state
             done = terminated or truncated
         return env
-    
+
+
 class DummyAgent:
     def __init__(self, n_observations, n_actions):
         self.n_observations = n_observations
@@ -305,7 +330,7 @@ class DummyAgent:
 
     def act(self, state):
         return 1  # Dummy action, always exit
-    
+
     def eval(self, env):
         state, info = env.reset()
         done = False

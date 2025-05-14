@@ -73,8 +73,7 @@ class FeatureEngineering:
             # build lagged columns
             lags = [series.shift(i) for i in range(window)]
             rolling = pd.concat(lags, axis=1)
-            rolling.columns = [
-                f"{self.prefix}{col}_lag_{i}" for i in range(window)]
+            rolling.columns = [f"{self.prefix}{col}_lag_{i}" for i in range(window)]
             if subtract_mean:
                 rolling = rolling.sub(rolling.mean(axis=1), axis=0)
             rolling = rolling.ffill().fillna(0)
@@ -118,9 +117,7 @@ def stationary_dgp(
     if random_state is not None:
         np.random.seed(random_state)
 
-    X, epsilon = np.zeros(N), np.zeros(
-        N
-    )  # +1 because we use epsilon[0] as initial value
+    X, epsilon = np.zeros(N), np.zeros(N)
 
     # Initial conditions
     X[0] = np.random.normal(x0, sigma_x)
@@ -180,9 +177,9 @@ def nonstationary_dgp(
 
     for t in range(1, N):
         if t % 200 == 0:
-            mu += (
-                np.random.standard_cauchy() * 0.01
-            )  # model slow evolution of equilibrium and very rare unexpected large shifts.
+            # model slow evolution of equilibrium and very rare unexpected
+            # large shifts.
+            mu += np.random.standard_cauchy() * 0.01
 
         if np.random.uniform(0, 1) >= 0.995:
             mu += np.random.uniform(

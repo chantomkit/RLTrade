@@ -9,7 +9,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
+Transition = namedtuple("Transition", ("state", "action", "next_state", "reward"))
+
 
 class ReplayMemory(object):
     def __init__(self, capacity):
@@ -21,14 +22,15 @@ class ReplayMemory(object):
 
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
-    
+
     def get_all(self):
         """Get all experiences stored in the memory."""
         return list(self.memory)
 
     def __len__(self):
         return len(self.memory)
-    
+
+
 class DQN(nn.Module):
     """A simple feedforward neural network for DQN.
 
@@ -37,13 +39,16 @@ class DQN(nn.Module):
         n_actions (int): Number of actions.
         hidden_layers (list): List of hidden layer sizes.
     """
+
     def __init__(self, n_observations, n_actions, hidden_layers=[32]):
         super(DQN, self).__init__()
         layer_dims = [n_observations] + hidden_layers
-        self.hidden = nn.ModuleList([
-            nn.Linear(layer_dims[i], layer_dims[i+1])
-            for i in range(len(layer_dims) - 1)
-        ])
+        self.hidden = nn.ModuleList(
+            [
+                nn.Linear(layer_dims[i], layer_dims[i + 1])
+                for i in range(len(layer_dims) - 1)
+            ]
+        )
         self.output = nn.Linear(layer_dims[-1], n_actions)
 
     def forward(self, x):
