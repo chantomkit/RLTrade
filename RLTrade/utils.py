@@ -228,3 +228,32 @@ def make_ohlc(
         close_[i] = close[end - 1]
 
     return open_, high_, low_, close_
+
+def excess_return_metric(history):
+    pv = history["portfolio_valuation"]       # array of portfolio values
+    price = history["data_close"]             # array of prices
+    # buy-and-hold market value
+    market = pv[0] * (price / price[0])       
+    # compute period returns
+    ret_p = pv[1:] / pv[:-1] - 1
+    ret_m = market[1:] / market[:-1] - 1
+    # excess return series
+    excess = ret_p - ret_m
+    # return cumulative excess over the episode
+    return np.nansum(excess)
+
+def extract_signals(historical_info_df: pd.DataFrame):
+    """
+    Given a DataFrame with columns ['data_close', 'position'], 
+    shift and detect only the entry/exit transitions.
+    Returns (buy_df, sell_df, exit_df).
+    """
+    df = historical_info_df[['data_close', 'position']].copy()
+    df['position'] = df['position'].shift(-1)
+    df['prev_position'] = df['position'].shift(1)
+
+    buy_df = df[(df['position'] == 1) & (df['prev_position'] != 1)]
+    sell_df = df[(df['position'] == -1) & (df['prev_position'] != -1)]
+    exit_df = df[(df['position'] == 0) & (df['prev_position'] != 0)]
+
+    return buy_df, sell_df, exit_df
