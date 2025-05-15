@@ -91,7 +91,7 @@ class FeatureEngineering:
         return result
 
 
-def stationary_dgp(
+def stationary_prob_model(
     N=10000,
     sigma_x=0.05,
     sigma_eta=0.1,
@@ -139,7 +139,7 @@ def stationary_dgp(
     return X, X + epsilon  # Y = X + ε
 
 
-def nonstationary_dgp(
+def nonstationary_prob_model(
     N=10000,
     sigma_x=0.05,
     sigma_eta=0.1,
