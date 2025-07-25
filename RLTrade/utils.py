@@ -196,21 +196,34 @@ def nonstationary_prob_model(
     return X, X + epsilon  # Y = X + ε
 
 
-def make_ohlc(
+def make_ohlcv(
     close,
     window=24,
     stride=24,
+    base_volume=1000,
+    return_sensitivity=1000,
+    volatility_sensitivity=1000,
+    random_state=None,
 ):
     """
-    Create OHLC data from a close price series using numpy.
+    Create OHLC and volume data from a close price series using numpy.
+
+    Volume is modeled as a function of price volatility and absolute return magnitude.
 
     Args:
         close (np.ndarray): Close price series as a numpy array.
         window (int): Window size for OHLC calculation.
+        stride (int): Stride size for moving window.
+        base_volume (float): Base trading volume level.
+        volatility_sensitivity (float): Multiplier for volume response to price dynamics.
+        random_state (int or None): For reproducibility.
 
     Returns:
-        tuple: Tuple of numpy arrays (open, high, low, close).
+        tuple: Tuple of numpy arrays (open, high, low, close, volume).
     """
+    if random_state is not None:
+        np.random.seed(random_state)
+
     n = len(close)
     n_windows = (n - window) // stride + 1
 
@@ -218,16 +231,25 @@ def make_ohlc(
     high_ = np.zeros(n_windows)
     low_ = np.zeros(n_windows)
     close_ = np.zeros(n_windows)
+    volume_ = np.zeros(n_windows)
 
     for i in range(n_windows):
         start = i * stride
         end = start + window
-        open_[i] = close[start]
-        high_[i] = close[start:end].max()
-        low_[i] = close[start:end].min()
-        close_[i] = close[end - 1]
+        segment = close[start:end]
 
-    return open_, high_, low_, close_
+        open_[i] = segment[0]
+        high_[i] = segment.max()
+        low_[i] = segment.min()
+        close_[i] = segment[-1]
+
+        # Calculate volatility
+        returns = np.diff(segment) / segment[:-1]
+        volatility = np.std(returns)
+        volume_[i] = int(base_volume * return_sensitivity * abs(returns).sum() * volatility_sensitivity * volatility)
+
+    return open_, high_, low_, close_, volume_
+
 
 def excess_return_metric(history):
     pv = history["portfolio_valuation"]       # array of portfolio values
